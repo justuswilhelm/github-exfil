@@ -1,40 +1,40 @@
 #!/usr/bin/env python
-import logging
 import subprocess
 from argparse import ArgumentParser
 from multiprocessing import Pool
-from os import environ, path
+from os import environ
+from pathlib import Path
 
 import requests
 
 
-logging.basicConfig(level=logging.INFO)
+out_folder = Path("out")
 
 
 def update_repo(repository):
     target = repository["owner"]["login"]
     repository_name = repository["name"]
-    clone_path = path.join("out", target, repository_name)
+    print("Cloning" ,repository_name)
+    clone_path = out_folder / target / repository_name
     clone_command = ("git", "clone", repository["ssh_url"], clone_path)
-    logging.info("Running %s", clone_command)
+    print("Running", clone_command)
     process = subprocess.run(clone_command)
     if process.returncode:
         fetch_command = ("git", "fetch")
-        logging.info("Running %s in %s", fetch_command, clone_path)
+        print("Running", fetch_command, "in", clone_path)
         subprocess.run(fetch_command, cwd=clone_path, check=True)
 
 
 def main():
+    access_token = environ["ACCESS_TOKEN"]
     url = (
-        "https://api.github.com/{type}/{clone_target}/repos?"
-        "access_token={token}&per_page=200"
-    ).format(
-        type=args.type,
-        clone_target=args.target,
-        token=environ["ACCESS_TOKEN"],
+        f"https://api.github.com/{args.type}/{args.target}/repos?per_page=200"
     )
-    repositories = requests.get(url).json()
-    logging.info("Cloning %d repositories", len(url))
+    session = requests.Session()
+    session.headers.update({"Authorization": access_token})
+    print("Requesting", url)
+    repositories = session.get(url).json()
+    print(f"Cloning or fetching {len(url)} repositories")
 
     with Pool() as pool:
         pool.map(update_repo, repositories)
